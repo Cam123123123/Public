@@ -24,7 +24,7 @@ data/processed/
 data/interim/
 
 # Optional raw data ignore if your PCAPs are large/private
-# data/raw/
+data/
 
 # VS Code local settings
 .vscode/
