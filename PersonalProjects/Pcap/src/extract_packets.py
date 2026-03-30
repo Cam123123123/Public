@@ -1,6 +1,6 @@
 from pathlib import Path
 import pandas as pd
-from scapy.all import PcapReader, IP, TCP, UDP, Dot11
+from scapy.all import PcapReader, IP, IPv6, TCP, UDP
 
 INPUT_PCAP = Path("data/raw/stripIP_3-30-26.pcapng")
 OUTPUT_CSV = Path("data/interim/packets.csv")
@@ -19,11 +19,11 @@ def format_timestamp(raw_time):
 
 def extract_packet_row(packet):
     row = {
-        "timestamp": format_timestamp(getattr(packet, "time", None)),
+        "timestamp_raw": getattr(packet, "time", None),
+        "timestamp_display": format_timestamp(getattr(packet, "time", None)),
+        "ip_version": None,
         "src_ip": None,
         "dst_ip": None,
-        "src_mac": None,
-        "dst_mac": None,
         "src_port": None,
         "dst_port": None,
         "protocol": "OTHER",
@@ -34,11 +34,9 @@ def extract_packet_row(packet):
         "highest_layer": packet.lastlayer().name if hasattr(packet, "lastlayer") else None,
     }
 
-    if Dot11 in packet:
-        row["src_mac"] = getattr(packet[Dot11], "addr2", None)
-        row["dst_mac"] = getattr(packet[Dot11], "addr1", None)
-
+    # IPv4
     if IP in packet:
+        row["ip_version"] = 4
         row["src_ip"] = packet[IP].src
         row["dst_ip"] = packet[IP].dst
 
@@ -52,6 +50,16 @@ def extract_packet_row(packet):
         except Exception:
             pass
 
+    # IPv6
+    elif IPv6 in packet:
+        row["ip_version"] = 6
+        row["src_ip"] = packet[IPv6].src
+        row["dst_ip"] = packet[IPv6].dst
+
+        if str(row["dst_ip"]).lower().startswith("ff"):
+            row["is_multicast"] = True
+
+    # Transport layer
     if TCP in packet:
         row["protocol"] = "TCP"
         row["src_port"] = packet[TCP].sport
@@ -75,7 +83,6 @@ def main():
 
     rows = []
     processed = 0
-    kept = 0
 
     print(f"Reading packets from {INPUT_PCAP} ...")
 
@@ -86,7 +93,10 @@ def main():
             try:
                 row = extract_packet_row(packet)
                 rows.append(row)
-                kept += 1
+
+                if processed <= 5:
+                    print(packet.summary())
+
             except Exception:
                 continue
 
@@ -97,8 +107,14 @@ def main():
     df.to_csv(OUTPUT_CSV, index=False)
 
     print(f"Finished. Processed {processed} packets.")
-    print(f"Saved {kept} rows to {OUTPUT_CSV}")
+    print(f"Saved {len(df)} rows to {OUTPUT_CSV}")
     print(df.head())
+
+    print("\nIP version counts:")
+    print(df["ip_version"].value_counts(dropna=False))
+
+    print("\nProtocol counts:")
+    print(df["protocol"].value_counts(dropna=False))
 
 
 if __name__ == "__main__":
