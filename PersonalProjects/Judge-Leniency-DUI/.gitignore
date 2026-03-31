@@ -1,5 +1,17 @@
+# Python
 venv/
 __pycache__/
 *.pyc
+
+# Data (keep processed, ignore raw heavy files)
+data/raw/interim
 data/raw/
-data/processed/
+data/raw/minute_pdfs/
+data/raw/debug_html/
+
+# Notebooks checkpoints
+.ipynb_checkpoints/
+
+# OS
+.DS_Store
+Thumbs.db
